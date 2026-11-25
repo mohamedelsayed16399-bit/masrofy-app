@@ -49,6 +49,12 @@ input{width:100%;background:#0f172a;border:1px solid #334155;color:#fff;border-r
 .ins{margin-top:12px;font-size:13px;line-height:1.9;color:#cbd5e1;border-top:1px solid #334155;padding-top:10px}
 input[type=date]{color-scheme:dark}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:4px}
+.goal{padding:10px 0;border-bottom:1px solid #334155}.goal:last-child{border:0}
+.goal .row .gname{font-weight:700;font-size:15px}
+.goal .gamt{font-size:13px}
+.goal .gbtn{background:#0f172a;border:1px solid #334155;color:#fff;border-radius:9px;width:34px;height:34px;font-size:17px}
+.goal .gdel{background:none;border:0;color:#64748b;font-size:16px;padding:6px}
+.goal.done .gname{color:#4ade80}
 </style>
 </head>
 <body>
@@ -64,6 +70,7 @@ input[type=date]{color-scheme:dark}
   </div>
   <div class="card"><div class="muted" style="margin-bottom:8px">المصروف حسب النوع</div><canvas id="donut" width="520" height="260"></canvas><div class="legend" id="legend"></div></div>
   <div class="card"><div class="muted" style="margin-bottom:8px">آخر ٦ شهور</div><canvas id="bars" width="520" height="220"></canvas></div>
+  <div class="card"><div class="row sp"><div class="muted">🎯 أهداف التوفير</div><button class="lnk" id="bGoal">+ هدف</button></div><div id="goals" style="margin-top:8px"></div></div>
   <div class="card"><div class="muted">العمليات <span id="cnt"></span></div>
     <div class="seg" id="flt" style="margin:8px 0"><button class="on" data-f="all">الكل</button><button data-f="exp">مصروف</button><button data-f="inc">دخل</button></div>
     <div class="fl"><input id="q" placeholder="🔍 دوّر في الملاحظات أو النوع"></div><div id="list"></div></div>
@@ -82,13 +89,13 @@ input[type=date]{color-scheme:dark}
   <button class="lnk" id="cancel" style="width:100%;margin-top:8px">إلغاء</button>
 </div></div>
 <script>
-const CATS={exp:[["🍔","أكل","#f97316"],["🚌","مواصلات","#3b82f6"],["🏠","سكن","#a855f7"],["🛒","بقالة","#22c55e"],["💡","فواتير","#eab308"],["🎮","ترفيه","#ec4899"],["💊","صحة","#ef4444"],["📦","أخرى","#94a3b8"]],inc:[["💼","مرتب","#22c55e"],["💻","شغل حر","#06b6d4"],["🎁","هدية","#ec4899"],["📦","أخرى","#94a3b8"]]};
+const CATS={exp:[["🍔","أكل","#f97316"],["🚌","مواصلات","#3b82f6"],["🏠","سكن","#a855f7"],["🛒","بقالة","#22c55e"],["💡","فواتير","#eab308"],["🎮","ترفيه","#ec4899"],["💊","صحة","#ef4444"],["🐷","توفير","#14b8a6"],["📦","أخرى","#94a3b8"]],inc:[["💼","مرتب","#22c55e"],["💻","شغل حر","#06b6d4"],["🎁","هدية","#ec4899"],["🐷","توفير","#14b8a6"],["📦","أخرى","#94a3b8"]]};
 const AR="٠١٢٣٤٥٦٧٨٩",MN=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.round(n).toLocaleString("ar-EG")+" ج";
 let S;try{S=JSON.parse(localStorage.getItem("masrofy")||"null")}catch(e){}
 S=S||{tx:[],budget:0};
-if(!Array.isArray(S.tx))S.tx=[];S.budget=+S.budget||0;if(!S.gen||typeof S.gen!="object")S.gen={};
+if(!Array.isArray(S.tx))S.tx=[];S.budget=+S.budget||0;if(!S.gen||typeof S.gen!="object")S.gen={};if(!Array.isArray(S.goals))S.goals=[];
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 let tT=0;function toast(m,act,fn){$("tmsg").textContent=m;const b=$("tact");b.style.display=act?"":"none";if(act){b.textContent=act;b.onclick=()=>{fn();$("toast").classList.remove("on")}}$("toast").classList.add("on");clearTimeout(tT);tT=setTimeout(()=>$("toast").classList.remove("on"),act?5000:2200)}
 const save=()=>{try{localStorage.setItem("masrofy",JSON.stringify(S))}catch(e){toast("مقدرتش أحفظ. المساحة ممتلئة؟")}};
@@ -106,7 +113,7 @@ function render(){
   $("budBox").style.display=S.budget?"block":"none";
   if(S.budget){const p=exp/S.budget*100;$("budTxt").textContent="الميزانية "+fmt(S.budget);$("budPct").textContent=Math.round(p).toLocaleString("ar-EG")+"٪";
     $("budBar").style.width=Math.min(100,p)+"%";$("budBar").style.background=p>100?"#f87171":p>80?"#eab308":"#4ade80"}
-  donut(by);bars();insights(inc,exp,k);
+  donut(by);bars();insights(inc,exp,k);renderGoals();
   const L2=L.filter(t=>(flt=="all"||t.type==flt)&&(!qs||((t.n||"")+" "+(CATS[t.type][t.c]||CATS[t.type][0])[1]).includes(qs)));
   $("cnt").textContent=L.length?"· "+L2.length.toLocaleString("ar-EG")+" من "+L.length.toLocaleString("ar-EG"):"";
   $("list").innerHTML=L2.length?L2.map(t=>{const c=CATS[t.type][t.c]||CATS[t.type][0];const dt=new Date(t.d);
@@ -140,6 +147,26 @@ function bars(){
     x.beginPath();x.roundRect(X+j*30,180-h,26,h,6);x.fill()});
     x.fillStyle="#94a3b8";x.font="14px system-ui";x.textAlign="center";x.fillText(MN[d.getMonth()].slice(0,5),X+28,204)});
 }
+function renderGoals(){
+  const el=$("goals");
+  if(!S.goals.length){el.innerHTML='<p class="muted" style="text-align:center;padding:8px">حطّ هدف تدّخر ليه (موبايل جديد، سفر، طوارئ) وتابع تقدمك.</p>';return}
+  el.innerHTML=S.goals.map(g=>{const p=Math.min(100,g.saved/g.target*100),done=g.saved>=g.target;
+    return `<div class="goal${done?" done":""}" data-id="${g.id}"><div class="row sp"><span class="gname">${done?"🏆 ":""}${g.name}</span><span class="gamt muted">${fmt(g.saved)} / ${fmt(g.target)}</span></div><div class="bar"><i style="width:${p}%;background:${done?"#4ade80":"#14b8a6"}"></i></div><div class="row" style="margin-top:6px;justify-content:flex-end;gap:6px"><button class="gbtn gplus" title="ضيف مبلغ">+</button><button class="gbtn gminus" title="اسحب مبلغ">−</button><button class="gdel" title="احذف الهدف">✕</button></div></div>`}).join("");
+}
+$("bGoal").onclick=()=>{const n=prompt("اسم الهدف (مثال: موبايل جديد):");if(!n)return;
+  const t=parseFloat(prompt("الهدف كام جنيه؟","1000"));if(!(t>0))return;
+  S.goals.push({id:Date.now()+Math.random(),name:n.trim(),target:Math.round(t),saved:0});save();render();toast("هدف جديد اتضاف 🎯")};
+$("goals").onclick=e=>{
+  const box=e.target.closest(".goal");if(!box)return;
+  const g=S.goals.find(x=>String(x.id)==box.dataset.id);if(!g)return;
+  if(e.target.closest(".gdel")){if(confirm("تحذف هدف «"+g.name+"»؟ (العمليات اللي سجلتها هتفضل في الحساب)")){S.goals=S.goals.filter(x=>x!==g);save();render();toast("الهدف اتحذف")}return}
+  const plus=e.target.closest(".gplus"),minus=e.target.closest(".gminus");
+  if(!plus&&!minus)return;
+  const v=parseFloat(prompt(plus?"هتضيف كام لـ«"+g.name+"»؟":"هتسحب كام من «"+g.name+"»؟","100"));if(!(v>0))return;
+  const amt=Math.round(v*100)/100,now=new Date(),ci=CATS.exp.findIndex(c=>c[1]=="توفير");
+  if(plus){g.saved=Math.round((g.saved+amt)*100)/100;S.tx.push({id:Date.now()+Math.random(),type:"exp",c:ci,a:amt,n:"توفير: "+g.name,d:now.getTime(),r:0});toast("اتضاف "+fmt(amt)+" لـ«"+g.name+"» 🐷"+(g.saved>=g.target?" — هدفك كمل! 🏆":""))}
+  else{if(v>g.saved){toast("مفيش غير "+fmt(g.saved)+" في الهدف ده");return}g.saved=Math.round((g.saved-amt)*100)/100;S.tx.push({id:Date.now()+Math.random(),type:"inc",c:CATS.inc.findIndex(c=>c[1]=="توفير"),a:amt,n:"سحب من: "+g.name,d:now.getTime(),r:0});toast("اتسحب "+fmt(amt)+" من «"+g.name+"»")}
+  save();cur=new Date(now.getFullYear(),now.getMonth(),1);render()};
 function cats(){$("cats").innerHTML=CATS[type].map((c,i)=>`<button data-i="${i}" class="${i==cat?"on":""}"><span>${c[0]}</span>${c[1]}</button>`).join("")}
 function setType(t){type=t;cat=0;$("tExp").className=t=="exp"?"on":"";$("tInc").className=t=="inc"?"on":"";cats()}
 const pad=n=>String(n).padStart(2,"0"),ds=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
@@ -169,7 +196,7 @@ $("bBk").onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify(S)],{
 $("bRs").onclick=()=>$("fRs").click();
 $("fRs").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.tx))throw 0;
   const good=o.tx.filter(t=>t&&(t.type=="exp"||t.type=="inc")&&t.a>0&&isFinite(t.d));
-  if(confirm("هتستبدل بياناتك الحالية بـ "+good.length.toLocaleString("ar-EG")+" عملية من النسخة. متأكد؟")){S={tx:good,budget:+o.budget||0,gen:(o.gen&&typeof o.gen=="object")?o.gen:{}};save();render();toast("اتسترجعت ✓")}}catch(x){toast("الملف ده مش نسخة مصروفي صحيحة")}e.target.value=""};r.readAsText(f)};
+  if(confirm("هتستبدل بياناتك الحالية بـ "+good.length.toLocaleString("ar-EG")+" عملية من النسخة. متأكد؟")){S={tx:good,budget:+o.budget||0,gen:(o.gen&&typeof o.gen=="object")?o.gen:{},goals:Array.isArray(o.goals)?o.goals.filter(g=>g&&g.name&&g.target>0):[]};save();render();toast("اتسترجعت ✓")}}catch(x){toast("الملف ده مش نسخة مصروفي صحيحة")}e.target.value=""};r.readAsText(f)};
 $("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);render()};$("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);render()};
 $("bBudget").onclick=()=>{const v=prompt("ميزانية الشهر بالجنيه (صفر لإلغائها):",S.budget||"");if(v!==null){S.budget=Math.max(0,parseFloat(v)||0);save();render()}};
 $("bCsv").onclick=()=>{const r=["التاريخ,النوع,الفئة,المبلغ,ملاحظة"].concat(S.tx.sort((a,b)=>a.d-b.d).map(t=>[new Date(t.d).toISOString().slice(0,10),t.type=="inc"?"دخل":"مصروف",CATS[t.type][t.c][1],t.a,'"'+t.n.replace(/"/g,'""')+'"'].join(",")));
@@ -190,5 +217,6 @@ window.__applyRecur=applyRecur;
 render();
 </script>
 </body></html>
+
 
 
