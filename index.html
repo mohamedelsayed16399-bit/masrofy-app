@@ -76,6 +76,7 @@ input[type=date]{color-scheme:dark}
   <input id="amt" type="number" inputmode="decimal" placeholder="المبلغ (جنيه)">
   <div class="cats" id="cats"></div>
   <input id="note" placeholder="ملاحظة (اختياري)">
+  <label class="muted" style="display:flex;align-items:center;gap:10px;margin:2px 0 12px;font-size:15px"><input id="rec" type="checkbox" style="width:22px;height:22px;margin:0;padding:0"> 🔁 كرر كل شهر (مرتب، إيجار، اشتراك)</label>
   <input id="dt" type="date" aria-label="التاريخ">
   <button class="go" id="save">حفظ</button>
   <button class="lnk" id="cancel" style="width:100%;margin-top:8px">إلغاء</button>
@@ -87,7 +88,7 @@ const $=id=>document.getElementById(id);
 const fmt=n=>Math.round(n).toLocaleString("ar-EG")+" ج";
 let S;try{S=JSON.parse(localStorage.getItem("masrofy")||"null")}catch(e){}
 S=S||{tx:[],budget:0};
-if(!Array.isArray(S.tx))S.tx=[];S.budget=+S.budget||0;
+if(!Array.isArray(S.tx))S.tx=[];S.budget=+S.budget||0;if(!S.gen||typeof S.gen!="object")S.gen={};
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 let tT=0;function toast(m,act,fn){$("tmsg").textContent=m;const b=$("tact");b.style.display=act?"":"none";if(act){b.textContent=act;b.onclick=()=>{fn();$("toast").classList.remove("on")}}$("toast").classList.add("on");clearTimeout(tT);tT=setTimeout(()=>$("toast").classList.remove("on"),act?5000:2200)}
 const save=()=>{try{localStorage.setItem("masrofy",JSON.stringify(S))}catch(e){toast("مقدرتش أحفظ. المساحة ممتلئة؟")}};
@@ -109,7 +110,7 @@ function render(){
   const L2=L.filter(t=>(flt=="all"||t.type==flt)&&(!qs||((t.n||"")+" "+(CATS[t.type][t.c]||CATS[t.type][0])[1]).includes(qs)));
   $("cnt").textContent=L.length?"· "+L2.length.toLocaleString("ar-EG")+" من "+L.length.toLocaleString("ar-EG"):"";
   $("list").innerHTML=L2.length?L2.map(t=>{const c=CATS[t.type][t.c]||CATS[t.type][0];const dt=new Date(t.d);
-    return `<div class="item" data-id="${t.id}"><div class="ic">${c[0]}</div><div class="t"><b>${c[1]}</b><span class="muted">${t.n?t.n+" · ":""}${dt.getDate().toLocaleString("ar-EG")} ${MN[dt.getMonth()]}</span></div><b class="${t.type=="inc"?"green":"red"}" style="display:flex;gap:4px"><span>${t.type=="inc"?"+":"−"}</span><span>${fmt(t.a)}</span></b><button class="del" data-id="${t.id}">✕</button></div>`}).join(""):'<p class="muted" style="text-align:center;padding:20px">'+(L.length?"مفيش نتايج بالفلتر ده.":'مفيش عمليات. دوس "إضافة".')+'</p>';
+    return `<div class="item" data-id="${t.id}"><div class="ic">${c[0]}</div><div class="t"><b>${c[1]}</b><span class="muted">${t.r||t.g?"🔁 ":""}${t.n?t.n+" · ":""}${dt.getDate().toLocaleString("ar-EG")} ${MN[dt.getMonth()]}</span></div><b class="${t.type=="inc"?"green":"red"}" style="display:flex;gap:4px"><span>${t.type=="inc"?"+":"−"}</span><span>${fmt(t.a)}</span></b><button class="del" data-id="${t.id}">✕</button></div>`}).join(""):'<p class="muted" style="text-align:center;padding:20px">'+(L.length?"مفيش نتايج بالفلتر ده.":'مفيش عمليات. دوس "إضافة".')+'</p>';
 }
 function insights(inc,exp,k){
   const el=$("ins"),parts=[],now=new Date(),isNow=k==key(now);
@@ -143,7 +144,7 @@ function cats(){$("cats").innerHTML=CATS[type].map((c,i)=>`<button data-i="${i}"
 function setType(t){type=t;cat=0;$("tExp").className=t=="exp"?"on":"";$("tInc").className=t=="inc"?"on":"";cats()}
 const pad=n=>String(n).padStart(2,"0"),ds=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 function openSheet(t){editId=t?t.id:null;setType(t?t.type:"exp");if(t){cat=t.c;cats()}
-  $("amt").value=t?t.a:"";$("note").value=t?t.n||"":"";
+  $("rec").checked=!!(t&&t.r);$("amt").value=t?t.a:"";$("note").value=t?t.n||"":"";
   const now=new Date();$("dt").value=t?ds(new Date(t.d)):(key(cur)==key(now)?ds(now):ds(new Date(cur.getFullYear(),cur.getMonth(),15)));
   $("save").textContent=t?"حفظ التعديل":"حفظ";$("modal").classList.add("on");setTimeout(()=>$("amt").focus(),50)}
 $("add").onclick=()=>openSheet(null);
@@ -155,7 +156,7 @@ $("cats").onclick=e=>{const b=e.target.closest("button");if(b){cat=+b.dataset.i;
 $("save").onclick=()=>{const a=parseFloat($("amt").value);if(!(a>0)){$("amt").focus();return}
   const now=new Date(),dv=$("dt").value;let d=key(cur)==key(now)?now:new Date(cur.getFullYear(),cur.getMonth(),15);
   if(/^\d{4}-\d{2}-\d{2}$/.test(dv)){const [y,m,dd]=dv.split("-").map(Number);d=new Date(y,m-1,dd,now.getHours(),now.getMinutes())}
-  const rec={type,c:cat,a:Math.round(a*100)/100,n:$("note").value.trim(),d:d.getTime()},old=editId!=null&&S.tx.find(t=>t.id==editId);
+  const rec={type,c:cat,a:Math.round(a*100)/100,n:$("note").value.trim(),d:d.getTime(),r:$("rec").checked?1:0},old=editId!=null&&S.tx.find(t=>t.id==editId);
   if(old)Object.assign(old,rec);else S.tx.push(Object.assign({id:Date.now()+Math.random()},rec));
   save();$("modal").classList.remove("on");cur=new Date(d.getFullYear(),d.getMonth(),1);try{navigator.vibrate&&navigator.vibrate(15)}catch(e){}
   toast(old?"اتعدلت ✓":"اتحفظت ✓");render()};
@@ -168,7 +169,7 @@ $("bBk").onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify(S)],{
 $("bRs").onclick=()=>$("fRs").click();
 $("fRs").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.tx))throw 0;
   const good=o.tx.filter(t=>t&&(t.type=="exp"||t.type=="inc")&&t.a>0&&isFinite(t.d));
-  if(confirm("هتستبدل بياناتك الحالية بـ "+good.length.toLocaleString("ar-EG")+" عملية من النسخة. متأكد؟")){S={tx:good,budget:+o.budget||0};save();render();toast("اتسترجعت ✓")}}catch(x){toast("الملف ده مش نسخة مصروفي صحيحة")}e.target.value=""};r.readAsText(f)};
+  if(confirm("هتستبدل بياناتك الحالية بـ "+good.length.toLocaleString("ar-EG")+" عملية من النسخة. متأكد؟")){S={tx:good,budget:+o.budget||0,gen:(o.gen&&typeof o.gen=="object")?o.gen:{}};save();render();toast("اتسترجعت ✓")}}catch(x){toast("الملف ده مش نسخة مصروفي صحيحة")}e.target.value=""};r.readAsText(f)};
 $("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);render()};$("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);render()};
 $("bBudget").onclick=()=>{const v=prompt("ميزانية الشهر بالجنيه (صفر لإلغائها):",S.budget||"");if(v!==null){S.budget=Math.max(0,parseFloat(v)||0);save();render()}};
 $("bCsv").onclick=()=>{const r=["التاريخ,النوع,الفئة,المبلغ,ملاحظة"].concat(S.tx.sort((a,b)=>a.d-b.d).map(t=>[new Date(t.d).toISOString().slice(0,10),t.type=="inc"?"دخل":"مصروف",CATS[t.type][t.c][1],t.a,'"'+t.n.replace(/"/g,'""')+'"'].join(",")));
@@ -176,7 +177,18 @@ $("bCsv").onclick=()=>{const r=["التاريخ,النوع,الفئة,المبل
 if(location.search.includes("demo")&&!S.tx.length){const n=Date.now(),D=864e5;
   [[0,"inc",0,9000,"مرتب"],[1,"exp",2,3000,"إيجار"],[2,"exp",0,450,"غدا"],[3,"exp",1,120,""],[5,"exp",3,780,"سوبرماركت"],[8,"exp",4,350,"كهرباء"],[9,"exp",5,200,""],[12,"exp",0,300,""],[40,"inc",0,9000,""],[41,"exp",2,3000,""],[45,"exp",0,1800,""],[70,"inc",0,8500,""],[72,"exp",2,3000,""],[75,"exp",3,1500,""],[100,"inc",0,8500,""],[102,"exp",6,900,""]]
   .forEach(([d,t,c,a,nt],i)=>S.tx.push({id:i,type:t,c,a,n:nt,d:n-d*D}));S.budget=6000}
+function applyRecur(){
+  const nk=key(new Date());let added=0;
+  S.tx.filter(t=>t.r).forEach(t=>{const day=new Date(t.d).getDate(),base=new Date(t.d);
+    for(let k=mk(t.d)+1;k<=nk;k++){const gk=t.id+"-"+k;if(S.gen[gk])continue;S.gen[gk]=1;
+      const y=Math.floor(k/12),m=k%12,dim=new Date(y,m+1,0).getDate();
+      S.tx.push({id:Date.now()+Math.random(),type:t.type,c:t.c,a:t.a,n:t.n,d:new Date(y,m,Math.min(day,dim),base.getHours(),base.getMinutes()).getTime(),g:t.id});added++}});
+  if(added){save();setTimeout(()=>toast("🔁 اتضاف "+added.toLocaleString("ar-EG")+" عملية متكررة"),400)}
+}
+applyRecur();
+window.__applyRecur=applyRecur;
 render();
 </script>
 </body></html>
+
 
